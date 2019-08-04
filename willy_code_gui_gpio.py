@@ -1,5 +1,6 @@
-from guizero import App, Text, PushButton, Combo, Picture, TextBox, info, Window, CheckBox
+from guizero import App, Text, PushButton, Combo, Picture, TextBox, info, Window, CheckBox, Slider
 import RPi.GPIO as GPIO
+import time
 
 #initialise all values
 def init():
@@ -36,6 +37,8 @@ def init():
     global valve4_pin
     global valve5_pin
     global valve6_pin
+    global stop
+    global pwm
     
     pump1_pos = "Closed"
     pump2_pos = "Closed"
@@ -57,15 +60,17 @@ def init():
     valve6_pin = 11
 
     GPIO.setmode(GPIO.BCM)
-    #GPIO.setup(pwnPin, GPIO.OUT)
-    GPIO.setup(pump1_pin, GPIO.OUT)
-    GPIO.setup(pump2_pin, GPIO.OUT)
-    GPIO.setup(valve1_pin, GPIO.OUT)
-    GPIO.setup(valve2_pin, GPIO.OUT)
-    GPIO.setup(valve3_pin, GPIO.OUT)
-    GPIO.setup(valve4_pin, GPIO.OUT)
-    GPIO.setup(valve5_pin, GPIO.OUT)
-    GPIO.setup(valve6_pin, GPIO.OUT)
+    GPIO.setup(pwmPin, GPIO.OUT)
+    pwm = GPIO.PWM(pwmPin, 50)
+    pwm.start(0.0)
+    GPIO.setup(pump1_pin, GPIO.OUT, initial=GPIO.LOW)
+    GPIO.setup(pump2_pin, GPIO.OUT, initial=GPIO.LOW)
+    GPIO.setup(valve1_pin, GPIO.OUT, initial=GPIO.LOW)
+    GPIO.setup(valve2_pin, GPIO.OUT, initial=GPIO.LOW)
+    GPIO.setup(valve3_pin, GPIO.OUT, initial=GPIO.LOW)
+    GPIO.setup(valve4_pin, GPIO.OUT, initial=GPIO.LOW)
+    GPIO.setup(valve5_pin, GPIO.OUT, initial=GPIO.LOW)
+    GPIO.setup(valve6_pin, GPIO.OUT, initial=GPIO.LOW)
     
     pump_status_update()
     valve_status_update()
@@ -97,6 +102,7 @@ def init():
     vorlauf_started = False
     htl_empty = False
     mashtun_full = False
+    stop = False
 
 #routines to update pump and valve status
 def pump_status_update():
@@ -248,6 +254,12 @@ def start_htl():
     global htl_temp
     global htl_temp_sp
     global htl_covered
+    global stop
+
+    if stop == True:
+        info("Warning!", "Stop button enabled")
+        return
+    
     htl_started = True
     try:
         #HTL temp control
@@ -262,7 +274,6 @@ def start_htl():
             HTL_start_button.bg = "green"
             HTL_stop_button.bg = "gray"
         else:
-            stop()
             stop_htl()
             info("Warning!", "Is the HTL element covered?")
     except NameError:
@@ -294,7 +305,6 @@ def start_boil():
         #reduce power 
     else:
         stop_boil()
-        stop()
         info("Warning!", "Ensure kettle temperature is under 99C and kettle is covered!")
 
 def stop_boil():
@@ -318,6 +328,12 @@ def start_strike():
     global pump1_pos
     global mashtun_full
     global htl_empty
+    global stop
+
+    if stop == True:
+        info("Warning!", "Stop button enabled")
+        return
+    
     strike_started = True
     if sparge_started == True:
         stop_sparge()
@@ -338,11 +354,9 @@ def start_strike():
             Strike_stop_button.bg = "gray"
         else:
             stop_strike()
-            stop()
             info("Warning!", "Ensure HTL temperature matches set point, HTL is not empty and mashtun is not full!")
     except NameError:
         stop_strike()
-        stop()
         info("Warning!", "You haven't defined a set point for the HTL!")
 
 def stop_strike():
@@ -354,6 +368,7 @@ def stop_strike():
     global valve6_pos
     global pump1_pos
     global strike_started
+    
     valve1_pos = "Closed"
     valve2_pos = "Closed"
     valve3_pos = "Closed"
@@ -379,6 +394,12 @@ def start_vorlauf():
     global vorlauf_started
     global strike_started
     global sparge_started
+    global stop
+
+    if stop == True:
+        info("Warning!", "Stop button enabled")
+        return
+    
     vorlauf_started = True
     if sparge_started == True:
         stop_sparge()
@@ -399,7 +420,6 @@ def start_vorlauf():
     else:
         info("Warning!", "Ensure there is something in the underback")
         stop_vorlauf()
-        stop()
 
 def stop_vorlauf():
     global valve1_pos
@@ -439,6 +459,11 @@ def start_sparge():
     global sparge_started
     global vorlauf_started
     global strike_started
+    global stop
+
+    if stop == True:
+        info("Warning!", "Stop button enabled")
+        return
     
     sparge_started = True
     if vorlauf_started == True:
@@ -464,11 +489,9 @@ def start_sparge():
         else:
             info("Warning!", "Ensure HTL temperature matches set point, HTL is not empty, kettle is not full and there is something in the underback!")
             stop_sparge()
-            stop()
     except NameError:
         info("Warning!", "You haven't defined a set point for the HTL!")
         stop_sparge()
-        stop()
 
 def stop_sparge():
     global valve1_pos
@@ -504,6 +527,12 @@ def start_drain():
     global valve6_pos
     global pump2_pos
     global kettle_empty_lvl_sns
+    global stop
+
+    if stop == True:
+        info("Warning!", "Stop button enabled")
+        return
+    
     drain_started = True
     if drain_started == True and kettle_empty_lvl_sns == False:
         valve1_pos = "Closed"
@@ -520,7 +549,6 @@ def start_drain():
     else:
         info("Warning!", "Ensure kettle is not empty!")
         stop_drain()
-        stop()
 
 def stop_drain():
     global valve1_pos
@@ -547,24 +575,52 @@ def update_temp_htl_sp():
     global htl_temp_sp
     htl_temp_sp = HTL_SetPoint_input.value
 
-def stop():
+def Stop():
+    global stop
+    stop = True
+    valve1_pos = "Closed"
+    valve2_pos = "Closed"
+    valve3_pos = "Closed"
+    valve4_pos = "Closed"
+    valve5_pos = "Closed"
+    valve6_pos = "Closed"
+    pump1_pos = "Closed"
+    pump1_pos = "Closed"
+    pump_status_update()
+    valve_status_update()
+    stop_strike()
+    stop_sparge()
+    stop_vorlauf()
+    stop_boil()
+    stop_htl()
+    stop_drain()
     stop_label.value = "Stopped"
     stop_label.text_color = "Red"
+    stop_button.bg = "Red"
 
 def reset():
+    global stop
+    stop = False
     stop_label.value = "Running"
     stop_label.text_color = "Green"
+    stop_button.bg = "Gray"
+
 
 def open_debug_window():
     debug.show()
 
-app = App(title="BreweryGUI", layout="grid", width=1280, height=720)
+def change_pwm(slider_value):
+    global pwm
+    pwm.ChangeDutyCycle(float(slider_value))
+
+app = App(title="BreweryGUI", layout="grid", width=1000, height=800)
 debug = Window(app, title="Debug Window", layout="grid", width=600)
 debug.hide()
 
 ########################################################################################################################
 #defining all labels and text
-stop_label = Text(app, grid=[0,0], text="", size=15, color="Green")
+stop_label = Text(app, grid=[0,0], text="Running", size=15, color="Green")
+stop_button = PushButton(app, grid=[2,0], text="Stop", command=Stop, align="left")
 reset_button = PushButton(app, grid=[1,0], text="Reset", command=reset, align="left")
 error_text = Text(app, grid=[0,3], text="", size=15, color="Red")
 debug_window = PushButton(app, grid=[4,0], text="Open Debug Commands", command=open_debug_window)
@@ -638,9 +694,13 @@ Kettle_ele_status = Text(app, grid=[3,11], text="Deactivated", size=15, color="R
 Kettle_temp_probe_label = Text(app, grid=[2,12], text="Kettle temperature sensor", size=15, color="Dark slate gray", align="left")
 Kettle_temp_probe_status = Text(app, grid=[3,12], text="Deactivated", size=15, color="Red")
 
-Kettle_covered_label= Text(app, grid=[2,13], text="Kettle covered", size=15, color="Dark slate gray", align="left")
+Kettle_covered_label = Text(app, grid=[2,13], text="Kettle covered", size=15, color="Dark slate gray", align="left")
 Kettle_covered_status = Text(app, grid=[3,13], text="Deactivated", size=15, color="Red")
 Kettle_covered_check = CheckBox(debug, grid=[2,21], text="Kettle element covered", command=kettle_covered_update)
+
+#PWM
+PWM_label = Text(app, grid=[3,15], text="PWM speed", size=15)
+PWM_slider = Slider(app, grid=[3,16], start=0, end=100, command=change_pwm, horizontal=True)
 
 ########################################################################################################################
 
@@ -688,4 +748,4 @@ init()
 
 app.display()
 
-
+GPIO.cleanup()

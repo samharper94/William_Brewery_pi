@@ -39,9 +39,12 @@ def init():
     global valve6_pin
     global stop
     global pwm
+    global init_run
+
+    init_run = True
     
-    pump1_pos = "Closed"
-    pump2_pos = "Closed"
+    pump1_pos = "Disabled"
+    pump2_pos = "Disabled"
     valve1_pos = "Closed"
     valve2_pos = "Closed"
     valve3_pos = "Closed"
@@ -104,6 +107,23 @@ def init():
     mashtun_full = False
     stop = False
 
+    update_temp_kettle()
+    kettle_full_lvl_sns_update()
+    kettle_empty_lvl_sns_update()
+    kettle_ele_lvl_sns_update()
+    kettle_covered_update()
+
+    underback_lvl_sns_update()
+
+    update_temp_htl()
+    htl_empty_lvl_sns_update()
+    htl_covered_update()
+
+    update_temp_mashtun()
+    mashtun_full_lvl_sns_update()
+
+    init_run = False
+
 #routines to update pump and valve status
 def pump_status_update():
     global pump1_pos
@@ -111,16 +131,19 @@ def pump_status_update():
     global pump1_pin
     global pump2_pin
 
-    
-    if(pump1_pos == "Open"):
+    if(pump1_pos == "Enabled"):
         GPIO.output(pump1_pin, GPIO.HIGH)
-    if(pump2_pos == "Open"):
+        pump1_status.text_color = "green"
+    if(pump2_pos == "Enabled"):
         GPIO.output(pump2_pin, GPIO.HIGH)
+        pump2_status.text_color = "green"
         
-    if(pump1_pos == "Closed"):
+    if(pump1_pos == "Disabled"):
         GPIO.output(pump1_pin, GPIO.LOW)
-    if(pump2_pos == "Closed"):
+        pump1_status.text_color = "red"
+    if(pump2_pos == "Disabled"):
         GPIO.output(pump2_pin, GPIO.LOW)
+        pump2_status.text_color = "red"
         
     pump1_status.value = pump1_pos
     pump2_status.value = pump2_pos
@@ -141,29 +164,41 @@ def valve_status_update():
     
     if(valve1_pos == "Open"):
         GPIO.output(valve1_pin, GPIO.HIGH)
+        valve1_status.text_color = "green"
     if(valve2_pos == "Open"):
         GPIO.output(valve2_pin, GPIO.HIGH)
+        valve2_status.text_color = "green"
     if(valve3_pos == "Open"):
         GPIO.output(valve3_pin, GPIO.HIGH)
+        valve3_status.text_color = "green"
     if(valve4_pos == "Open"):
         GPIO.output(valve4_pin, GPIO.HIGH)
+        valve4_status.text_color = "green"
     if(valve5_pos == "Open"):
         GPIO.output(valve5_pin, GPIO.HIGH)
+        valve5_status.text_color = "green"
     if(valve6_pos == "Open"):
         GPIO.output(valve6_pin, GPIO.HIGH)
+        valve6_status.text_color = "green"
         
     if(valve1_pos == "Closed"):
         GPIO.output(valve1_pin, GPIO.LOW)
+        valve1_status.text_color = "red"
     if(valve2_pos == "Closed"):
         GPIO.output(valve2_pin, GPIO.LOW)
+        valve2_status.text_color = "red"
     if(valve3_pos == "Closed"):
         GPIO.output(valve3_pin, GPIO.LOW)
+        valve3_status.text_color = "red"
     if(valve4_pos == "Closed"):
         GPIO.output(valve4_pin, GPIO.LOW)
+        valve4_status.text_color = "red"
     if(valve5_pos == "Closed"):
         GPIO.output(valve5_pin, GPIO.LOW)
+        valve5_status.text_color = "red"
     if(valve6_pos == "Closed"):
         GPIO.output(valve6_pin, GPIO.LOW)
+        valve6_status.text_color = "red"
         
     valve1_status.value = valve1_pos
     valve2_status.value = valve2_pos
@@ -175,35 +210,48 @@ def valve_status_update():
 #routines to update debug temperatures and sensors
 def update_temp_htl():
     global htl_temp
+    global init_run
     htl_temp = HTL_temp_input.value
     HTL_temp_status.value = str(htl_temp) + " Celcius"
+    HTL_temp_status.text_color = (int(htl_temp), 0, 255-int(htl_temp))
+    if init_run == True:
+        return
     start_htl()
 
 def update_temp_mashtun():
     global mashtun_temp
     mashtun_temp = Mashtun_temp_input.value
     Mashtun_temp_probe_status.value = str(mashtun_temp) + " Celcius"
+    Mashtun_temp_probe_status.text_color = (int(mashtun_temp), 0, 255-int(mashtun_temp))
 
 def update_temp_kettle():
     global kettle_temp
+    global init_run
     kettle_temp = int(Kettle_temp_input.value)
     Kettle_temp_probe_status.value = str(kettle_temp) + " Celcius"
+    Kettle_temp_probe_status.text_color = (int(kettle_temp), 0, 255-int(kettle_temp))
+    if init_run == True:
+        return
     start_boil()
 
 def kettle_full_lvl_sns_update():
     global kettle_full_lvl_sns
     if Kettle_full_lvl_sns_check.value == 1:
         kettle_full_lvl_sns = True
+        Kettle_full_lvl_sns_status.text_color = "red"
     if Kettle_full_lvl_sns_check.value == 0:
         kettle_full_lvl_sns = False
+        Kettle_full_lvl_sns_status.text_color = "green"
     Kettle_full_lvl_sns_status.value = str(kettle_full_lvl_sns)
 
 def kettle_empty_lvl_sns_update():
     global kettle_empty_lvl_sns
     if Kettle_empty_lvl_sns_check.value == 1:
         kettle_empty_lvl_sns = True
+        Kettle_emp_lvl_sns_status.text_color = "red"
     if Kettle_empty_lvl_sns_check.value == 0:
         kettle_empty_lvl_sns = False
+        Kettle_emp_lvl_sns_status.text_color = "green"
     Kettle_emp_lvl_sns_status.value = str(kettle_empty_lvl_sns)
 
 def kettle_ele_lvl_sns_update():
@@ -215,8 +263,10 @@ def kettle_covered_update():
     global kettle_covered
     if Kettle_covered_check.value == 1:
         kettle_covered = True
+        Kettle_covered_status.text_color = "green"
     if Kettle_covered_check.value == 0:
-        kettle_covered = False    
+        kettle_covered = False
+        Kettle_covered_status.text_color = "red"
     Kettle_covered_status.value = str(kettle_covered)
 
 def underback_lvl_sns_update():
@@ -228,25 +278,31 @@ def htl_empty_lvl_sns_update():
     global htl_empty_lvl_sns
     if HTL_empty_lvl_sns_check.value == 1:
         htl_empty_lvl_sns = True
+        HTL_emp_lvl_sns_status.text_color = "red"
     if HTL_empty_lvl_sns_check.value == 0:
         htl_empty_lvl_sns = False
+        HTL_emp_lvl_sns_status.text_color = "green"
     HTL_emp_lvl_sns_status.value = str(htl_empty_lvl_sns)
 
 def mashtun_full_lvl_sns_update():
     global mashtun_full_lvl_sns
     if Mashtun_full_lvl_sns_check.value == 1:
         mashtun_full_lvl_sns = True
+        Mashtun_full_lvl_sns_status.text_color = "red"
     if Mashtun_full_lvl_sns_check.value == 0:
         mashtun_full_lvl_sns = False
+        Mashtun_full_lvl_sns_status.text_color = "green"
     Mashtun_full_lvl_sns_status.value = str(mashtun_full_lvl_sns)
 
 def htl_covered_update():
     global htl_covered
     if HTL_covered_check.value == 1:
         htl_covered = True
+        HTL_covered_status.text_color = "green"
     if HTL_covered_check.value == 0:
-        htl_covered = False    
-    HTL_covered_status.value = str(kettle_covered)
+        htl_covered = False
+        HTL_covered_status.text_color = "red"
+    HTL_covered_status.value = str(htl_covered)
 
 #routines to start and stop each stage
 def start_htl():
@@ -259,18 +315,20 @@ def start_htl():
     if stop == True:
         info("Warning!", "Stop button enabled")
         return
-    
+
     htl_started = True
     try:
         #HTL temp control
         if htl_started == True and htl_temp_sp == htl_temp and htl_covered == True: #and HTL_temp_probe = True
             HTL_temp_status.value = str(htl_temp) + " Celcius"
             HTL_ele_sns_status.value = "Heated"
+            HTL_ele_sns_status.text_color = "green"
             HTL_start_button.bg = "green"
             HTL_stop_button.bg = "gray"
         elif htl_started == True and htl_temp < htl_temp_sp and htl_covered == True:
             HTL_temp_status.value = str(htl_temp) + " Celcius"
             HTL_ele_sns_status.value = "Heating"
+            HTL_ele_sns_status.text_color = "red"
             HTL_start_button.bg = "green"
             HTL_stop_button.bg = "gray"
         else:
@@ -292,10 +350,12 @@ def start_boil():
     global boil_ele_started
     global kettle_temp
     global kettle_covered
+
     boil_started = True
     if boil_started == True and kettle_temp <= 99 and kettle_covered == True: #and kettle_temp_probe = True
         Kettle_temp_probe_status.value = str(Kettle_temp_input.value) + " Celcius"
         Kettle_ele_status.value = "Enabled"
+        Kettle_ele_status.text_color = "green"
         boil_ele_started = True
         Boil_start_button.bg = "green"
         Boil_stop_button.bg = "gray"
@@ -311,6 +371,7 @@ def stop_boil():
     Boil_start_button.bg = "gray"
     Boil_stop_button.bg = "red"
     boil_started = False
+    Kettle_ele_status.text_color = "red"
     Kettle_ele_status.value = "Disabled"
 
 def start_strike():
@@ -664,7 +725,7 @@ HTL_temp_status = Text(app, grid=[3,4], text="Deactivated", size=15, color="Red"
 Underback_lvl_sns_label = Text(app, grid=[2,5], text="Underback level sensor", size=15, color="Indian red", align="left")
 Underback_lvl_sns_status = Text(app, grid=[3,5], text="Deactivated", size=15, color="Red")
 Underback_lvl_sns_input_button = PushButton(debug, command=underback_lvl_sns_update, grid=[1,22], text="Underback level sensor", align="left")
-Underback_lvl_sns_input = TextBox(debug, grid=[2,22])
+Underback_lvl_sns_input = TextBox(debug, grid=[2,22], text = "0")
 
 #Mashtun
 Mashtun_full_lvl_sns_label = Text(app, grid=[2,6], text="Mashtun full level sensor", size=15, color="Orange2", align="left")
@@ -686,7 +747,7 @@ Kettle_empty_lvl_sns_check = CheckBox(debug, command=kettle_empty_lvl_sns_update
 Kettle_ele_lvl_sns_label = Text(app, grid=[2,10], text="Kettle element level sensor", size=15, color="Dark slate gray", align="left")
 Kettle_ele_lvl_sns_status = Text(app, grid=[3,10], text="Deactivated", size=15, color="Red")
 Kettle_ele_lvl_sns_input_button = PushButton(debug, command=kettle_ele_lvl_sns_update, grid=[1,20], text="Kettle element level sensor", align="left")
-Kettle_ele_lvl_sns_input = TextBox(debug, grid=[2,20])
+Kettle_ele_lvl_sns_input = TextBox(debug, grid=[2,20], text = "0")
 
 Kettle_ele_label = Text(app, grid=[2,11], text="Kettle element", size=15, color="Dark slate gray", align="left")
 Kettle_ele_status = Text(app, grid=[3,11], text="Deactivated", size=15, color="Red")
@@ -704,20 +765,20 @@ PWM_slider = Slider(app, grid=[3,16], start=0, end=100, command=change_pwm, hori
 
 ########################################################################################################################
 
-#declaring floats, string and bools
+#declaring debug inputs
 setpoint_mode_label = Text(app, grid=[0,14], text="Setpoint mode", size=15, align="left")
 setpoint_mode = Combo(app, grid=[1,14], options=["Strike", "Sparge", "Manual Input"], align="left")
 
 HTL_temp_input_label = Text(debug, grid=[0,15], text="Debug HTL temp", size=15, align="left")
-HTL_temp_input = TextBox(debug, grid=[1,15])
+HTL_temp_input = TextBox(debug, grid=[1,15], text = "0")
 HTL_update_temp = PushButton(debug, command=update_temp_htl, grid=[2,15], text="Update temp", align="left")
 
 Mashtun_temp_input_label = Text(debug, grid=[0,16], text="Debug Mashtun temp", size=15, align="left")
-Mashtun_temp_input = TextBox(debug, grid=[1,16])
+Mashtun_temp_input = TextBox(debug, grid=[1,16], text = "0")
 Mashtun_update_temp = PushButton(debug, command=update_temp_mashtun, grid=[2,16], text="Update temp", align="left")
 
 Kettle_temp_input_label = Text(debug, grid=[0,17], text="Debug Kettle temp", size=15, align="left")
-Kettle_temp_input = TextBox(debug, grid=[1,17])
+Kettle_temp_input = TextBox(debug, grid=[1,17], text = "0")
 Kettle_update_temp = PushButton(debug, command=update_temp_kettle, grid=[2,17], text="Update temp", align="left")
 
 HTL_start_button = PushButton(app, command=start_htl, grid=[0,18], text="Start HTL", align="left")
@@ -739,7 +800,7 @@ Drain_start_button = PushButton(app, command=start_drain, grid=[0,23], text="Sta
 Drain_stop_button = PushButton(app, command=stop_drain, grid=[1,23], text="Stop drain", align="left")
 
 HTL_SetPoint_input_label = Text(app, grid=[3,14], text="HTL temp set point", size=15, align="left")
-HTL_SetPoint_input = TextBox(app, grid=[4,14])
+HTL_SetPoint_input = TextBox(app, grid=[4,14], text = "0")
 HTL_update_SetPoint = PushButton(app, command=update_temp_htl_sp, grid=[5,14], text="Update temp", align="left")
 
 ########################################################################################################################

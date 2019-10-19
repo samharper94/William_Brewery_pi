@@ -6,16 +6,43 @@ from threading import Thread
 
 class TempRead(Thread):
     global htl_temp
+    global htl_temp_sp
     global t_sensor
+    global htl_started
+    global htl_ele_pin
     def __init__(self):
         Thread.__init__(self)
         self.running = True
     def run(self):
         global htl_temp
+        global htl_temp_sp
         global t_sensor
+        global htl_started
+        global htl_ele_pin
         while self.running:
             htl_temp = float(t_sensor.get_temperature())
             HTL_temp_status.value = str(htl_temp) + " Celcius"
+            if htl_started == True and float(htl_temp_sp) <= float(htl_temp) and htl_covered == True:
+                GPIO.output(htl_ele_pin, GPIO.LOW)
+                HTL_temp_status.value = str(htl_temp) + " Celcius"
+                HTL_ele_sns_status.value = "Heated"
+                HTL_ele_sns_status.text_color = "green"
+                HTL_start_button.bg = "gray"
+                HTL_stop_button.bg = "red"
+            elif htl_started == True and float(htl_temp) < float(htl_temp_sp) and htl_covered == True:
+                GPIO.output(htl_ele_pin, GPIO.HIGH)
+                HTL_temp_status.value = str(htl_temp) + " Celcius"
+                HTL_ele_sns_status.value = "Heating"
+                HTL_ele_sns_status.text_color = "red"
+                HTL_start_button.bg = "green"
+                HTL_stop_button.bg = "gray"
+            elif htl_started == False:
+                GPIO.output(htl_ele_pin, GPIO.LOW)
+                HTL_temp_status.value = str(htl_temp) + " Celcius"
+                HTL_ele_sns_status.value = "Stopped"
+                HTL_ele_sns_status.text_color = "green"
+                HTL_start_button.bg = "gray"
+                HTL_stop_button.bg = "red"
             time.sleep(0.1)
     def stop(self):
         self.running=False
@@ -41,10 +68,12 @@ def init():
     global htl_empty_lvl_sns
     global mashtun_full_lvl_sns
     global htl_covered
+    global htl_started
     global strike_started
     global sparge_started
     global vorlauf_started
     global drain_started
+    global cool_wort_started
     global htl_empty
     global boil_started
     global mashtun_full
@@ -61,6 +90,8 @@ def init():
     global htl_temp_pin
     global mashtun_temp_pin
     global kettle_temp_pin
+    global htl_ele_pin
+    global kettle_ele_pin
     global stop
     global pwm
     global init_run
@@ -90,8 +121,8 @@ def init():
     valve6_pin = 11
     htl_pin = 2
     htl_temp_pin = 3
-    mashtun_temp_pin = 4
-    kettle_temp_pin = 17
+    htl_ele_pin = 17
+    kettle_ele_pin = 4
 
     GPIO.setmode(GPIO.BCM)
     GPIO.setup(pwmPin, GPIO.OUT)
@@ -106,8 +137,8 @@ def init():
     GPIO.setup(valve5_pin, GPIO.OUT, initial=GPIO.LOW)
     GPIO.setup(valve6_pin, GPIO.OUT, initial=GPIO.LOW)
     GPIO.setup(htl_temp_pin, GPIO.IN)
-    GPIO.setup(mashtun_temp_pin, GPIO.IN)
-    GPIO.setup(kettle_temp_pin, GPIO.IN)
+    GPIO.setup(htl_ele_pin, GPIO.OUT, initial=GPIO.LOW)
+    GPIO.setup(kettle_ele_pin, GPIO.OUT, initial=GPIO.LOW)
     
     pump_status_update()
     valve_status_update()
@@ -134,11 +165,13 @@ def init():
     Mashtun_full_lvl_sns_status.value = str(mashtun_full_lvl_sns)
     htl_covered = False    
     HTL_covered_status.value = str(kettle_covered)
+    htl_started = False
     strike_started = False
     sparge_started = False
     vorlauf_started = False
     drain_started = False
     boil_started = False
+    cool_wort_started = False
     htl_empty = False
     mashtun_full = False
     stop = False
@@ -366,9 +399,12 @@ def start_htl():
     global htl_covered
     global boil_started
     global stop
+    global cool_wort_started
 
     if boil_started == True:
         stop_boil()
+    if cool_wort_started == True:
+        stop_cool_wort()
 
     if stop == True:
         info("Warning!", "Stop button enabled")
@@ -377,7 +413,7 @@ def start_htl():
     htl_started = True
     try:
         #HTL temp control
-        if htl_started == True and int(htl_temp_sp) == int(htl_temp) and htl_covered == True: #and HTL_temp_probe = True
+        if htl_started == True and int(htl_temp_sp) <= int(htl_temp) and htl_covered == True: #and HTL_temp_probe = True
             HTL_temp_status.value = str(htl_temp) + " Celcius"
             HTL_ele_sns_status.value = "Heated"
             HTL_ele_sns_status.text_color = "green"
@@ -397,11 +433,12 @@ def start_htl():
         stop_htl()
         htl_started = False
         
-
 def stop_htl():
+    global htl_started
     HTL_start_button.bg = "gray"
     HTL_stop_button.bg = "red"
     htl_started = False
+    GPIO.output(htl_ele_pin, GPIO.LOW)
 
 def start_boil():
     global boil_started
@@ -410,7 +447,10 @@ def start_boil():
     global kettle_covered
     global drain_started
     global htl_started
-
+    global cool_wort_started
+    
+    if cool_wort_started == True:
+        stop_cool_wort()
     if htl_started == True:
         stop_htl()
     if drain_started == True:
@@ -455,6 +495,7 @@ def start_strike():
     global mashtun_full
     global htl_empty
     global drain_started
+    global cool_wort_started
     global stop
 
     if stop == True:
@@ -462,12 +503,12 @@ def start_strike():
         return
     
     strike_started = True
-    if sparge_started == True:
-        stop_sparge()
     if vorlauf_started == True:
         stop_vorlauf()
     if drain_started == True:
         stop_drain()
+    if cool_wort_started == True:
+        stop_cool_wort()
     try:
         if strike_started == True and htl_temp == htl_temp_sp and htl_empty == False and mashtun_full == False:
             valve1_pos = "Open"
@@ -524,6 +565,7 @@ def start_vorlauf():
     global strike_started
     global sparge_started
     global drain_started
+    global cool_wort_started
     global stop
 
     if stop == True:
@@ -537,6 +579,8 @@ def start_vorlauf():
         stop_strike()
     if drain_started == True:
         stop_drain()
+    if cool_wort_started == True:
+        stop_cool_wort()
     if vorlauf_started == True and underback_lvl_sns > 0:
         valve1_pos = "Closed"
         valve2_pos = "Open"
@@ -592,6 +636,7 @@ def start_sparge():
     global vorlauf_started
     global strike_started
     global drain_started
+    global cool_wort_started
     global stop
 
     if stop == True:
@@ -601,19 +646,19 @@ def start_sparge():
     sparge_started = True
     if vorlauf_started == True:
         stop_vorlauf()
-    if strike_started == True:
-        stop_strike()
     if drain_started == True:
         stop_drain()
+    if cool_wort_started == True:
+        stop_cool_wort()
     try:
         if sparge_started == True and htl_temp == htl_temp_sp and kettle_full_lvl_sns == False and underback_lvl_sns > 0 and htl_empty_lvl_sns == False:
-            valve1_pos = "Open"
+            valve1_pos = "Closed"
             valve2_pos = "Closed"
             valve3_pos = "Open"
             valve4_pos = "Open"
             valve5_pos = "Closed"
             valve6_pos = "Closed"
-            pump1_pos = "Enabled"
+            pump1_pos = "Disabled"
             pump_status_update()
             valve_status_update()
             Sparge_start_button.bg = "green"
@@ -667,6 +712,7 @@ def start_drain():
     global strike_started
     global drain_started
     global boil_started
+    global cool_wort_started
     global stop
 
     if stop == True:
@@ -680,6 +726,8 @@ def start_drain():
         stop_strike()
     if boil_started == True:
         stop_boil()
+    if cool_wort_started == True:
+        stop_cool_wort()
     drain_started = True
     if drain_started == True and kettle_empty_lvl_sns == False:
         valve1_pos = "Closed"
@@ -717,6 +765,70 @@ def stop_drain():
     Drain_start_button.bg = "gray"
     Drain_stop_button.bg = "red"
     drain_started = False
+
+def cool_wort():
+    global valve1_pos
+    global valve2_pos
+    global valve3_pos
+    global valve4_pos
+    global valve5_pos
+    global valve6_pos
+    global pump2_pos
+    global sparge_started
+    global vorlauf_started
+    global strike_started
+    global drain_started
+    global boil_started
+    global drain_started
+    global cool_wort_started
+    global stop
+    if stop == True:
+        info("Warning!", "Stop button enabled")
+        return
+    cool_wort_started = True
+    if sparge_started == True:
+        stop_sparge()
+    if vorlauf_started == True:
+        stop_vorlauf()
+    if strike_started == True:
+        stop_strike()
+    if boil_started == True:
+        stop_boil()
+    if drain_started == True:
+        stop_drain()
+    valve1_pos = "Closed"
+    valve2_pos = "Closed"
+    valve3_pos = "Open"
+    valve4_pos = "Closed"
+    valve5_pos = "Open"
+    valve6_pos = "Closed"
+    pump2_pos = "Enabled"
+    pump_status_update()
+    valve_status_update()
+    Cool_wort_button.bg = "green"
+    Cool_wort_stop_button.bg = "gray"
+
+def stop_cool_wort():
+    global valve1_pos
+    global valve2_pos
+    global valve3_pos
+    global valve4_pos
+    global valve5_pos
+    global valve6_pos
+    global pump2_pos
+    global cool_wart_started
+    valve1_pos = "Closed"
+    valve2_pos = "Closed"
+    valve3_pos = "Closed"
+    valve4_pos = "Closed"
+    valve5_pos = "Closed"
+    valve6_pos = "Closed"
+    pump2_pos = "Disabled"
+    pump_status_update()
+    valve_status_update()
+    Cool_wort_button.bg = "gray"
+    Cool_wort_stop_button.bg = "red"
+    cool_wort_started = False
 
 def update_temp_htl_sp():
     global htl_temp_sp
@@ -873,14 +985,14 @@ HTL_stop_button = PushButton(app, command=stop_htl, grid=[1,18], text="Stop HTL"
 Boil_start_button = PushButton(app, command=start_boil, grid=[0,19], text="Start boil", align="left")
 Boil_stop_button = PushButton(app, command=stop_boil, grid=[1,19], text="Stop boil", align="left")
 
-Strike_start_button = PushButton(app, command=start_strike, grid=[0,20], text="Start strike", align="left")
-Strike_stop_button = PushButton(app, command=stop_strike, grid=[1,20], text="Stop strike", align="left")
+Strike_start_button = PushButton(app, command=start_strike, grid=[0,20], text="Start strike/sparge", align="left")
+Strike_stop_button = PushButton(app, command=stop_strike, grid=[1,20], text="Stop strike/sparge", align="left")
 
 Vorlauf_start_button = PushButton(app, command=start_vorlauf, grid=[0,21], text="Start vorlauf", align="left")
 Vorlauf_stop_button = PushButton(app, command=stop_vorlauf, grid=[1,21], text="Stop vorlauf", align="left")
 
-Sparge_start_button = PushButton(app, command=start_sparge, grid=[0,22], text="Start sparge", align="left")
-Sparge_stop_button = PushButton(app, command=stop_sparge, grid=[1,22], text="Stop sparge", align="left")
+Sparge_start_button = PushButton(app, command=start_sparge, grid=[0,22], text="Start lauter", align="left")
+Sparge_stop_button = PushButton(app, command=stop_sparge, grid=[1,22], text="Stop lauter", align="left")
 
 Drain_start_button = PushButton(app, command=start_drain, grid=[0,23], text="Start drain", align="left")
 Drain_stop_button = PushButton(app, command=stop_drain, grid=[1,23], text="Stop drain", align="left")
@@ -888,6 +1000,9 @@ Drain_stop_button = PushButton(app, command=stop_drain, grid=[1,23], text="Stop 
 HTL_SetPoint_input_label = Text(app, grid=[3,14], text="HTL temp set point", size=15, align="left")
 HTL_SetPoint_input = TextBox(app, grid=[4,14], text = "0")
 HTL_update_SetPoint = PushButton(app, command=update_temp_htl_sp, grid=[5,14], text="Update temp", align="left")
+
+Cool_wort_button = PushButton(app, command=cool_wort, grid=[0,24], text="Cool wort", align="left")
+Cool_wort_stop_button = PushButton(app, command=stop_cool_wort, grid=[1,24], text="Stop cool wort", align="left")
 
 ########################################################################################################################
 

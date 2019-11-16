@@ -7,45 +7,92 @@ from threading import Thread
 class TempRead(Thread):
     global htl_temp
     global htl_temp_sp
+    global kettle_temp
+    global mashtun_temp
     global t_sensor
     global htl_started
     global htl_ele_pin
-    def __init__(self):
-        Thread.__init__(self)
-        self.running = True
-    def run(self):
+    global kettle_ele_pin
+    def __init__(tempsens):
+        Thread.__init__(tempsens)
+        tempsens.running = True
+    def run(tempsens):
         global htl_temp
         global htl_temp_sp
+        global kettle_temp
+        global mashtun_temp
         global t_sensor
         global htl_started
         global htl_ele_pin
-        while self.running:
-            htl_temp = float(t_sensor.get_temperature())
-            HTL_temp_status.value = str(htl_temp) + " Celcius"
-            if htl_started == True and float(htl_temp_sp) <= float(htl_temp) and htl_covered == True:
-                GPIO.output(htl_ele_pin, GPIO.LOW)
-                HTL_temp_status.value = str(htl_temp) + " Celcius"
-                HTL_ele_sns_status.value = "Heated"
-                HTL_ele_sns_status.text_color = "green"
-                HTL_start_button.bg = "gray"
-                HTL_stop_button.bg = "red"
-            elif htl_started == True and float(htl_temp) < float(htl_temp_sp) and htl_covered == True:
-                GPIO.output(htl_ele_pin, GPIO.HIGH)
-                HTL_temp_status.value = str(htl_temp) + " Celcius"
-                HTL_ele_sns_status.value = "Heating"
-                HTL_ele_sns_status.text_color = "red"
-                HTL_start_button.bg = "green"
-                HTL_stop_button.bg = "gray"
-            elif htl_started == False:
-                GPIO.output(htl_ele_pin, GPIO.LOW)
-                HTL_temp_status.value = str(htl_temp) + " Celcius"
-                HTL_ele_sns_status.value = "Stopped"
-                HTL_ele_sns_status.text_color = "green"
-                HTL_start_button.bg = "gray"
-                HTL_stop_button.bg = "red"
+        while tempsens.running:
+            sensorID_htl = "0310977960d6"
+            sensorID_mashtun = "0310977933b8"
+            sensorID_kettle = "031097794470"
+            for sensor in W1ThermSensor.get_available_sensors():
+                curSensorID = sensor.id
+                curTemp = sensor.get_temperature()
+                if curSensorID == sensorID_htl:
+                    htl_temp = float(sensor.get_temperature())
+                    HTL_temp_status.value = str(htl_temp) + " Celcius"
+                    if htl_started == True and float(htl_temp_sp) <= float(htl_temp) and htl_covered == True:
+                        GPIO.output(htl_ele_pin, GPIO.LOW)
+                        HTL_temp_status.value = str(htl_temp) + " Celcius"
+                        HTL_ele_sns_status.value = "Heated"
+                        HTL_ele_sns_status.text_color = "green"
+                        HTL_start_button.bg = "gray"
+                        HTL_stop_button.bg = "red"
+                    elif htl_started == True and float(htl_temp) < float(htl_temp_sp) and htl_covered == True:
+                        GPIO.output(htl_ele_pin, GPIO.HIGH)
+                        HTL_temp_status.value = str(htl_temp) + " Celcius"
+                        HTL_ele_sns_status.value = "Heating"
+                        HTL_ele_sns_status.text_color = "red"
+                        HTL_start_button.bg = "green"
+                        HTL_stop_button.bg = "gray"
+                    elif htl_started == False:
+                        GPIO.output(htl_ele_pin, GPIO.LOW)
+                        HTL_temp_status.value = str(htl_temp) + " Celcius"
+                        HTL_ele_sns_status.value = "Stopped"
+                        HTL_ele_sns_status.text_color = "green"
+                        HTL_start_button.bg = "gray"
+                        HTL_stop_button.bg = "red"
+                if curSensorID == sensorID_mashtun:
+                    mashtun_temp = float(sensor.get_temperature())
+                    Mashtun_temp_probe_status.value = str(mashtun_temp) + " Celcius"
+                if curSensorID == sensorID_kettle:
+                    kettle_temp = float(sensor.get_temperature())
+                    Kettle_temp_probe_status.value = str(kettle_temp) + " Celcius"
             time.sleep(0.1)
-    def stop(self):
-        self.running=False
+    def stop(tempsens):
+        tempsens.running = False
+
+class kettle_pwm(Thread):
+    global boil_started
+    global kettle_ele_pin
+    global kettle_temp
+    def __init__(ket):
+        Thread.__init__(ket)
+        ket.running = True
+    def run(ket):
+        while ket.running:
+            if kettle_temp > 19:
+                if boil_started == True:
+                    GPIO.output(kettle_ele_pin, GPIO.HIGH)
+                    Kettle_ele_status.value = "Enabled"
+                    Kettle_ele_status.text_color = "green"
+                    time.sleep(0.5)
+                    GPIO.output(kettle_ele_pin, GPIO.LOW)
+                    Kettle_ele_status.value = "Disabled"
+                    Kettle_ele_status.text_color = "red"            
+                    time.sleep(0.5)
+            if kettle_temp < 17:
+                boil_started == False
+                GPIO.output(kettle_ele_pin, GPIO.LOW)
+                Kettle_ele_status.value = "Disabled"
+                Kettle_ele_status.text_color = "red"
+                Boil_start_button.bg = "gray"
+                Boil_stop_button.bg = "red"
+    def stop(ket):
+        ket.running = False
 
 #initialise all values
 def init():
@@ -192,7 +239,9 @@ def init():
     mashtun_full_lvl_sns_update()
 
     a = TempRead()
+    b = kettle_pwm()
     a.start()
+    b.start()
 
     init_run = False
 
@@ -457,17 +506,13 @@ def start_boil():
         stop_drain()
 
     boil_started = True
-    if boil_started == True and kettle_temp <= 99 and kettle_covered == True: #and kettle_temp_probe = True
+    if boil_started == True and kettle_covered == True: 
         Kettle_temp_probe_status.value = str(Kettle_temp_input.value) + " Celcius"
         Kettle_ele_status.value = "Enabled"
         Kettle_ele_status.text_color = "green"
         boil_ele_started = True
         Boil_start_button.bg = "green"
         Boil_stop_button.bg = "gray"
-    elif boil_started == True and kettle_temp > 99:
-        stop_boil()
-        stop()
-        #reduce power 
     else:
         stop_boil()
         info("Warning!", "Ensure kettle temperature is under 99C and kettle is covered!")
